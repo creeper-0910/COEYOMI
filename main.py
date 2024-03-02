@@ -1,6 +1,8 @@
+import configparser
 import os
 import re
 
+import discord
 from discord import Client, FFmpegPCMAudio, Intents, Interaction
 from discord.app_commands import CommandTree
 from discord.ui import Select, View
@@ -8,6 +10,7 @@ from discord.ui import Select, View
 import api
 import config as cfg
 
+user_conf = configparser.ConfigParser()
 
 def matchindex(mention_list,id):
     for i in range(len(mention_list)):
@@ -26,11 +29,44 @@ class MyClient(Client):
         await self.tree.sync()
 
     async def on_ready(self):
+        user_conf.read(cfg.user_file)
         print(f'Logged in as {client.user.name}')
+
+    async def close(self):
+        with open(cfg.user_file, 'w') as user_data:
+            user_conf.write(user_data)
+        print(f'Goodbye')
 
 intents = Intents.all()
 client = MyClient(intents=intents)
 
+class SelectStyle(View):
+    @discord.ui.select(
+        cls=Select,
+        placeholder="スタイルを選択"
+    )
+    async def selectMenu(self, interaction: Interaction, select: Select):
+        await cfg.delete_msg.delete()
+        user_conf[str(interaction.guild.id)][str(interaction.user.id)+"-id"] = select.values[0]
+        print(user_conf)
+class SelectChara(View):
+    @discord.ui.select(
+        cls=Select,
+        placeholder="キャラクターを選択"
+    )
+    async def selectMenu(self, interaction: Interaction, select: Select):
+        await cfg.delete_msg.delete()
+        await interaction.response.defer(ephemeral=True)
+        view = SelectStyle()
+        user_conf[str(interaction.guild.id)][str(interaction.user.id)+"-chara"] = cfg.speaker[int(select.values[0])]["speakerUuid"]
+        for i in range(len(cfg.speaker[int(select.values[0])]["styles"])):
+            view.selectMenu.add_option(
+                label=cfg.speaker[int(select.values[0])]["styles"][i]["styleName"],
+                value=cfg.speaker[int(select.values[0])]["styles"][i]["styleId"],
+                description=str(cfg.speaker[int(select.values[0])]["styles"][i]["styleId"]),
+            )
+
+        cfg.delete_msg = await interaction.followup.send("スタイルを選択してください", view=view, ephemeral=True)
 
 @client.tree.command()
 async def join(interaction: Interaction):
@@ -57,17 +93,19 @@ async def leave(interaction: Interaction):
 
 @client.tree.command()
 async def settings(interaction: Interaction):
-    select = Select(placeholder="キャラクターを選択")
-    select.add_option(
-        label="つくよみちゃん",
-        value="user can not see this",
-        description="this is description",
-    )
+    await interaction.response.defer(ephemeral=True)
+    if not (interaction.guild.id in user_conf):
+        user_conf[str(interaction.guild.id)] = {}
+    cfg.speaker = api.getspeaker()
+    view = SelectChara()
+    for i in range(len(cfg.speaker)):
+        view.selectMenu.add_option(
+            label=cfg.speaker[i]["speakerName"],
+            value=i,
+            description=cfg.speaker[i]["speakerUuid"],
+        )
 
-    view = View()
-    view.add_item(select)
-
-    await interaction.response.send_message("キャラクターを選択してください", view=view)
+    cfg.delete_msg = await interaction.followup.send("キャラクターを選択してください", view=view, ephemeral=True)
 
 @client.event
 async def on_message(message):
@@ -129,7 +167,11 @@ async def on_message(message):
             speaker_text = str(linkcount)+"件のリンク "+speaker_text
 
         # api->genvoice 音声を生成
-        voice = api.genvoice(speaker_text)
+        if(str(message.guild.id) in user_conf):
+            if(str(message.author.id)+"-id" in user_conf[str(message.guild.id)]):
+                voice = api.genvoice(speaker_text,user_conf[str(message.guild.id)][str(message.author.id)+"-chara"],user_conf[str(message.guild.id)][str(message.author.id)+"-id"])
+            else:
+                voice = api.genvoice(speaker_text)
         temp_file = rf'temp_{clean_message}.wav'
 
         # 生成した音声を一時ファイルに保存

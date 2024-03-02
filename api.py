@@ -1,3 +1,5 @@
+import json
+
 import requests
 
 import config as cfg
@@ -20,7 +22,7 @@ def getspeaker():
     response = requests.get(
         cfg.engine_api + '/v1/speakers'
         )
-    return response.content
+    return response.json()
 
 def setdict(text,accent):
     response = requests.post(
