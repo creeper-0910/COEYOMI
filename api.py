@@ -16,9 +16,15 @@ def genvoice(text,speaker_uuid=cfg.default_uuid, speaker_id=cfg.default_id):
         })
     return response.content
 
+def getspeaker():
+    response = requests.get(
+        cfg.engine_api + '/v1/speakers'
+        )
+    return response.content
+
 def setdict(text,accent):
     response = requests.post(
-        cfg.engine_api + '/predict',
+        cfg.engine_api + '/v1/set_dictionary',
         json={
             'dictionaryWords': []
         })
