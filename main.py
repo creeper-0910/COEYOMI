@@ -157,7 +157,7 @@ async def on_message(message):
                         speaker_text = speaker_text.replace(mention_user[index], mention.name+"さん")
 
         speaker_text = re.sub(r'<\S{1,}>', '',  speaker_text)
-
+        speaker_text = re.sub(r'\n', ' ',  speaker_text)
         # ファイルの種類と数をカウント
         if len(message.attachments) != 0:
             attach_count = {}

@@ -1,4 +1,5 @@
 # COEIROINK 読み上げbot v2 API
+![COEYOMI](https://raw.githubusercontent.com/creeper-0910/COEYOMI/main/COEYOMI.png)
 ## 環境
 * Python 3.10
 * ffpmeg 2024-2-26
