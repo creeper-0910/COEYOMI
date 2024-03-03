@@ -3,7 +3,7 @@ import os
 import re
 
 import discord
-from discord import Client, FFmpegPCMAudio, Intents, Interaction
+from discord import Client, FFmpegPCMAudio, Intents, Interaction, app_commands
 from discord.app_commands import CommandTree
 from discord.ui import Select, View
 
@@ -20,10 +20,43 @@ def matchindex(mention_list,id):
 
 # ここからBotのコード
 
+class Settings(app_commands.Group):
+    def __init__(self, name: str):
+        super().__init__(name=name)
+
+    @app_commands.command()
+    async def chara(self,interaction: Interaction):
+        await interaction.response.defer(ephemeral=True)
+        if not (interaction.guild.id in user_conf):
+            user_conf[str(interaction.guild.id)] = {}
+        cfg.speaker = api.getspeaker()
+        view = SelectChara()
+        for i in range(len(cfg.speaker)):
+            view.selectMenu.add_option(
+                label=cfg.speaker[i]["speakerName"],
+                value=i,
+                description=cfg.speaker[i]["speakerUuid"],
+            )
+
+        cfg.delete_msg = await interaction.followup.send("キャラクターを選択してください", view=view, ephemeral=True)
+    @app_commands.command()
+    async def list(self,interaction: Interaction):
+        await interaction.response.defer(ephemeral=True)
+        cfg.speaker = api.getspeaker()
+        embed = discord.Embed(title="キャラクター一覧")
+        for i in range(len(cfg.speaker)):
+            style_list = ""
+            for j in range(len(cfg.speaker[i]["styles"])):
+                style_list = style_list + cfg.speaker[i]["styles"][j]["styleName"] + "\n"
+            embed.add_field(name=cfg.speaker[i]["speakerName"],value=style_list,inline=False)
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+
 class MyClient(Client):
     def __init__(self, intents: Intents) -> None:
         super().__init__(intents=intents)
         self.tree = CommandTree(self)
+        self.tree.add_command(Settings("settings"))
 
     async def setup_hook(self) -> None:
         await self.tree.sync()
@@ -49,8 +82,26 @@ class SelectStyle(View):
     )
     async def selectMenu(self, interaction: Interaction, select: Select):
         await cfg.delete_msg.delete()
+        await interaction.response.defer(ephemeral=True)
         user_conf[str(interaction.guild.id)][str(interaction.user.id)+"-id"] = select.values[0]
-        print(user_conf)
+        if(interaction.guild.id in cfg.in_voice):
+            vc = cfg.in_voice[interaction.guild.id]
+            if(str(interaction.guild.id) in user_conf):
+                if(str(interaction.user.id)+"-id" in user_conf[str(interaction.guild.id)]):
+                    voice = api.genvoice("設定が完了しました。よろしくおねがいします!",user_conf[str(interaction.guild.id)][str(interaction.user.id)+"-chara"],user_conf[str(interaction.guild.id)][str(interaction.user.id)+"-id"])
+                else:
+                    await interaction.followup.send("設定に問題が発生しました、再度お試しください",ephemeral=True)
+            else:
+                await interaction.followup.send("設定に問題が発生しました、再度お試しください",ephemeral=True)
+            temp_file = rf'temp_よろしくおねがいします.wav'
+
+            # 生成した音声を一時ファイルに保存
+            with open(temp_file, 'wb') as f:
+                f.write(voice)
+            # TODO: 発声中にVCから切断された場合にファイルが削除されない
+            vc.play(FFmpegPCMAudio(temp_file, executable=cfg.ffmpeg_path), after=lambda e: os.remove(temp_file))
+
+
 class SelectChara(View):
     @discord.ui.select(
         cls=Select,
@@ -76,11 +127,11 @@ async def join(interaction: Interaction):
         channel = interaction.user.voice.channel
         if interaction.guild.voice_client is None:
             vc = await channel.connect()
-            await interaction.response.send_message(f'Joined {channel.name}')
+            await interaction.response.send_message(f'{channel.name}に参加しました')
             cfg.in_voice[interaction.guild.id] = vc
             cfg.call_channel[interaction.guild.id] = interaction.channel
         else:
-            await interaction.response.send_message('Already in a voice channel')
+            await interaction.response.send_message('既にボイスチャンネルに参加しています')
 
 
 @client.tree.command()
@@ -88,26 +139,9 @@ async def leave(interaction: Interaction):
     if interaction.guild.id in cfg.in_voice:
         vc = cfg.in_voice[interaction.guild.id]
         await vc.disconnect()
-        await interaction.response.send_message('Left the voice channel')
+        await interaction.response.send_message('ボイスチャンネルから切断しました')
         del cfg.in_voice[interaction.guild.id]
         del cfg.call_channel[interaction.guild.id]
-
-
-@client.tree.command()
-async def settings(interaction: Interaction):
-    await interaction.response.defer(ephemeral=True)
-    if not (interaction.guild.id in user_conf):
-        user_conf[str(interaction.guild.id)] = {}
-    cfg.speaker = api.getspeaker()
-    view = SelectChara()
-    for i in range(len(cfg.speaker)):
-        view.selectMenu.add_option(
-            label=cfg.speaker[i]["speakerName"],
-            value=i,
-            description=cfg.speaker[i]["speakerUuid"],
-        )
-
-    cfg.delete_msg = await interaction.followup.send("キャラクターを選択してください", view=view, ephemeral=True)
 
 @client.event
 async def on_message(message):
