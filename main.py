@@ -33,6 +33,8 @@ class MyClient(Client):
         print(f'Logged in as {client.user.name}')
 
     async def close(self):
+        for vc in cfg.in_voice.values():
+            await vc.disconnect()
         with open(cfg.user_file, 'w') as user_data:
             user_conf.write(user_data)
         print(f'Goodbye')
@@ -172,6 +174,8 @@ async def on_message(message):
                 voice = api.genvoice(speaker_text,user_conf[str(message.guild.id)][str(message.author.id)+"-chara"],user_conf[str(message.guild.id)][str(message.author.id)+"-id"])
             else:
                 voice = api.genvoice(speaker_text)
+        else:
+            voice = api.genvoice(speaker_text)
         temp_file = rf'temp_{clean_message}.wav'
 
         # 生成した音声を一時ファイルに保存
