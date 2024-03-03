@@ -84,22 +84,6 @@ class SelectStyle(View):
         await cfg.delete_msg.delete()
         await interaction.response.defer(ephemeral=True)
         user_conf[str(interaction.guild.id)][str(interaction.user.id)+"-id"] = select.values[0]
-        if(interaction.guild.id in cfg.in_voice):
-            vc = cfg.in_voice[interaction.guild.id]
-            if(str(interaction.guild.id) in user_conf):
-                if(str(interaction.user.id)+"-id" in user_conf[str(interaction.guild.id)]):
-                    voice = api.genvoice("設定が完了しました。よろしくおねがいします!",user_conf[str(interaction.guild.id)][str(interaction.user.id)+"-chara"],user_conf[str(interaction.guild.id)][str(interaction.user.id)+"-id"])
-                else:
-                    await interaction.followup.send("設定に問題が発生しました、再度お試しください",ephemeral=True)
-            else:
-                await interaction.followup.send("設定に問題が発生しました、再度お試しください",ephemeral=True)
-            temp_file = rf'temp_よろしくおねがいします.wav'
-
-            # 生成した音声を一時ファイルに保存
-            with open(temp_file, 'wb') as f:
-                f.write(voice)
-            # TODO: 発声中にVCから切断された場合にファイルが削除されない
-            vc.play(FFmpegPCMAudio(temp_file, executable=cfg.ffmpeg_path), after=lambda e: os.remove(temp_file))
 
 
 class SelectChara(View):
@@ -171,6 +155,8 @@ async def on_message(message):
                         speaker_text = speaker_text.replace(mention_user[index], mention.global_name+"さん")
                     else:
                         speaker_text = speaker_text.replace(mention_user[index], mention.name+"さん")
+
+        speaker_text = re.sub(r'<\S{1,}>', '',  speaker_text)
 
         # ファイルの種類と数をカウント
         if len(message.attachments) != 0:
