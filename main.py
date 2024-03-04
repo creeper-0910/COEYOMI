@@ -1,4 +1,5 @@
 import configparser
+import hashlib
 import os
 import re
 
@@ -117,7 +118,6 @@ async def join(interaction: Interaction):
         else:
             await interaction.response.send_message('既にボイスチャンネルに参加しています')
 
-
 @client.tree.command()
 async def leave(interaction: Interaction):
     if interaction.guild.id in cfg.in_voice:
@@ -126,6 +126,17 @@ async def leave(interaction: Interaction):
         await interaction.response.send_message('ボイスチャンネルから切断しました')
         del cfg.in_voice[interaction.guild.id]
         del cfg.call_channel[interaction.guild.id]
+
+@client.tree.command()
+async def version(interaction: Interaction):
+    await interaction.response.defer()
+    with open(os.path.basename(__file__), 'rb') as file:
+        main_file = file.read()
+    version_hash = hashlib.sha256(main_file).hexdigest()[:7]
+    embed = discord.Embed(title="バージョン情報", description=cfg.version + "-" + version_hash)
+    embed.set_thumbnail(url="https://raw.githubusercontent.com/creeper-0910/COEYOMI/main/COEYOMI.png")
+    await interaction.followup.send(embed=embed)
+
 
 @client.event
 async def on_message(message):

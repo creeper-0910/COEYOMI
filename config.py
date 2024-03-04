@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+version = "1.0.0"
+
 token = os.environ['token']
 user_file = os.getcwd()+"\\userconfig.cfg"
 url_regex = r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
