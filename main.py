@@ -1,7 +1,9 @@
 import configparser
 import hashlib
+import logging
 import os
 import re
+import subprocess
 
 import discord
 from discord import Client, FFmpegPCMAudio, Intents, Interaction, app_commands
@@ -10,6 +12,9 @@ from discord.ui import Select, View
 
 import api
 import config as cfg
+
+logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(message)s')
+print = logging.info
 
 user_conf = configparser.ConfigParser()
 
@@ -20,6 +25,32 @@ def matchindex(mention_list,id):
     return None
 
 # ここからBotのコード
+
+class MyClient(Client):
+    def __init__(self, intents: Intents) -> None:
+        super().__init__(intents=intents)
+        self.tree = CommandTree(self)
+        self.tree.add_command(Settings("settings"))
+
+    async def setup_hook(self) -> None:
+        await self.tree.sync()
+
+    async def on_ready(self):
+        user_conf.read(cfg.user_file)
+        status = api.heartbeat()
+        if(status != "start"):
+            cfg.process = subprocess.Popen(cfg.engine_path, shell=True)
+        print(f'Logged in as {client.user.name}')
+
+    async def close(self):
+        for vc in cfg.in_voice.values():
+            await vc.disconnect()
+        with open(cfg.user_file, 'w') as user_data:
+            user_conf.write(user_data)
+        if(cfg.process != None and cfg.process.poll() == None):
+            cfg.process.kill()
+            cfg.process.wait()
+        print(f'Goodbye')
 
 class Settings(app_commands.Group):
     def __init__(self, name: str):
@@ -51,27 +82,6 @@ class Settings(app_commands.Group):
                 style_list = style_list + cfg.speaker[i]["styles"][j]["styleName"] + "\n"
             embed.add_field(name=cfg.speaker[i]["speakerName"],value=style_list,inline=False)
         await interaction.followup.send(embed=embed, ephemeral=True)
-
-
-class MyClient(Client):
-    def __init__(self, intents: Intents) -> None:
-        super().__init__(intents=intents)
-        self.tree = CommandTree(self)
-        self.tree.add_command(Settings("settings"))
-
-    async def setup_hook(self) -> None:
-        await self.tree.sync()
-
-    async def on_ready(self):
-        user_conf.read(cfg.user_file)
-        print(f'Logged in as {client.user.name}')
-
-    async def close(self):
-        for vc in cfg.in_voice.values():
-            await vc.disconnect()
-        with open(cfg.user_file, 'w') as user_data:
-            user_conf.write(user_data)
-        print(f'Goodbye')
 
 intents = Intents.all()
 client = MyClient(intents=intents)
@@ -226,4 +236,4 @@ async def on_voice_state_update(member, before, after):
             del cfg.in_voice[member.guild.id]
             del cfg.call_channel[member.guild.id]
 
-client.run(cfg.token)
+client.run(cfg.token, log_handler=None)

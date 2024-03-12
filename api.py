@@ -1,10 +1,20 @@
 import json
 
 import requests
+from requests.exceptions import ConnectionError
 
 import config as cfg
 
 # COEIROINK API
+
+def heartbeat():
+    try:
+        response = requests.get(
+            cfg.engine_api
+            )
+        return response.json()["status"]
+    except ConnectionError as e:
+        return "stop"
 
 def genvoice(text,speaker_uuid=cfg.default_uuid, speaker_id=cfg.default_id):
     response = requests.post(

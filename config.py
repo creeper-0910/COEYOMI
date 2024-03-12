@@ -16,7 +16,8 @@ engine_path = os.getcwd()+"\\COEIROINK\\engine\\engine.exe"
 ffmpeg_path = os.getcwd()+"\\bin\\ffmpeg.exe"
 engine_api  = "http://localhost:50032"
 
-delete_msg = None
-in_voice = {}
 speaker = []
+process = None
+in_voice = {}
+delete_msg = None
 call_channel = {}
