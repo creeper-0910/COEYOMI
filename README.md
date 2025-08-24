@@ -16,15 +16,21 @@ COEIROINKフォルダ内に
 
 をコピーしてください。  
 
-binフォルダ内に  
+ffmpegフォルダ内に  
 * ffmpeg.exe (ファイル)
 * ffplay.exe (ファイル)
 * ffprobe.exe (ファイル)  
 
 をコピーしてください  
 
-python 3.12をインストールし、[Poetryのインストール手順](https://python-poetry.org/docs/#installation)を参考にPoetryをインストールしてください。
-
-### 参考文献
+python 3.12をインストールし、[Poetryのインストール手順](https://python-poetry.org/docs/#installation)を参考にPoetryをインストールしてください。  
+その後、以下のコマンドを実行して、実行してください。
+```bash
+poetry install
+poetry run py coeyomi.py
+```
+### 参考文献・必須ファイル
 [Pycord ドキュメント](https://docs.pycord.dev/ja/master)  
+[ffpmeg](https://github.com/btbn/ffmpeg-builds/releases)
+[COEIROINK](https://coeiroink.com/download)
 ありがとうございます！  
