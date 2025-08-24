@@ -1,0 +1,10 @@
+__pycache__
+.env
+*.lock
+.venv
+*.toml
+*.sqlite3
+COEIROINK/*
+ffmpeg/*
+!COEIROINK/.gitkeep
+!ffmpeg/.gitkeep
