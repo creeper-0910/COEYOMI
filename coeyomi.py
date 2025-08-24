@@ -70,7 +70,6 @@ async def on_ready():
                 return
             print(f"{cfg['default']['startup_timeout'] * i}秒後に再試行します...")
             await asyncio.sleep(cfg["default"]["startup_timeout"] * i)
-    print(cfg["default"]["coeiroink_path"])
     g.speakerList = await api.getspeaker()
     print(f"{bot.user}としてログインしました!")
     print(await bot.application_info())

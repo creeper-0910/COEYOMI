@@ -1,9 +1,9 @@
 [default]
 bot_token = ""
 #各種ファイルパス・リンクを指定します
-coeiroink_path = "COEIROINK/engine/engine.exe"
+coeiroink_path = "COEIROINK\\engine\\engine.exe"
 coeiroink_url = "http://127.0.0.1:50032"
-ffmepg_path = "ffmpeg/ffmpeg.exe"
+ffmepg_path = "ffmpeg\\ffmpeg.exe"
 database = "sqlite:///coeyomi_user.sqlite3"
 #キャラクターが見つからない、または設定されていない場合のフォールバック先を指定します
 defaultCharacter = "3c37646f-3881-5374-2a83-149267990abc"
