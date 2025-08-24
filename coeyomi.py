@@ -5,6 +5,7 @@ import subprocess
 from typing import List, Union
 
 import discord
+import jaconv
 from discord import (
     ClientException,
     FFmpegPCMAudio,
@@ -14,7 +15,7 @@ from discord import (
     User,
     VoiceState,
 )
-from discord.ext import commands, tasks
+from discord.ext import tasks
 from discord.ext.commands import Bot
 from dynaconf import Dynaconf
 from nanoid import generate
@@ -44,7 +45,7 @@ g = GV()
 fnc = COEYOMI_FUNC(g, cfg)
 sql = SQL(cfg["default"]["database"])
 sql.createTable()
-bot = Bot(owner_ids=cfg["default"]["owner_id"], intents=discord.Intents.all())
+bot = Bot(intents=discord.Intents.all())
 
 
 @bot.event
@@ -66,8 +67,8 @@ async def on_ready():
                 bot.loop.stop()
                 await asyncio.sleep(5)
                 return
-            print(f"{cfg["default"]["startup_timeout"]*i}秒後に再試行します...")
-            await asyncio.sleep(cfg["default"]["startup_timeout"]*i)
+            print(f"{cfg['default']['startup_timeout'] * i}秒後に再試行します...")
+            await asyncio.sleep(cfg["default"]["startup_timeout"] * i)
     print(cfg["default"]["coeiroink_path"])
     g.speakerList = await api.getspeaker()
     print(f"{bot.user}としてログインしました!")
@@ -97,6 +98,48 @@ async def chara(ctx: discord.ApplicationContext):
     msg = await paginator.respond(ctx.interaction)
     g.charaDict[msg.id] = paginator
     await fnc.update_page_reaction(msg)
+
+
+@bot.slash_command(
+    name="setdict",
+    description="読み上げ辞書を追加します(ワード、読み、アクセント)",
+)
+async def setdict(
+    ctx: discord.ApplicationContext,
+    word: str = discord.Option(
+        str,
+        description="ワード",
+    ),
+    yomi: str = discord.Option(
+        str,
+        description="読み",
+    ),
+    accent: int = discord.Option(
+        int,
+        default=0,
+        description="アクセント",
+    ),
+):
+    if accent > len(yomi) or 0 > len(yomi):
+        await ctx.response.send_message(
+            "アクセントの値が不正です!",
+            delete_after=5,
+        )
+        return
+    try:
+        dict_table = sql.getSingleDictSettings(ctx.user, word)
+        dict_table.yomi = yomi
+        dict_table.accent = accent
+        sql.session.commit()
+        await ctx.response.send_message(
+            f"ワード:{word}、読み:{yomi}、アクセント:{accent}に設定しました!",
+            delete_after=5,
+        )
+    except Exception:
+        sql.session.rollback()
+        await ctx.response.send_message(
+            "設定の保存に失敗しました。管理者にお問い合わせください。"
+        )
 
 
 @bot.slash_command(
@@ -148,20 +191,37 @@ async def reset(
     ctx: discord.ApplicationContext,
     target: str = discord.Option(
         str,
-        choices=["character", "advanced"],
+        choices=["character", "advanced", "dict"],
         description="リセットする項目",
     ),
+    word: str = discord.Option(
+        str,
+        description="削除するワードを指定します。(辞書を削除する場合にのみ利用可能)",
+        default="",
+    ),
 ):
-    user_table = sql.getUserSettings(ctx.user)
+    #TODO:新しい列を作成せずリセットできるようにする
     try:
         match target:
             case "character":
+                user_table = sql.getUserSettings(ctx.user)
                 user_table.character = None
                 user_table.style = None
             case "advanced":
+                user_table = sql.getUserSettings(ctx.user)
                 user_table.pitchScale = None
                 user_table.intonationScale = None
                 user_table.processingAlgorithm = None
+            case "dict":
+                dict_table = sql.getSingleDictSettings(ctx.user, word)
+                if dict_table.yomi is None:
+                    await ctx.response.send_message(
+                        "指定されたワードが辞書に見つかりませんでした!",delete_after=5
+                    )
+                    sql.session.delete(dict_table)
+                    return
+                sql.session.delete(dict_table)
+
         sql.session.commit()
         await ctx.response.send_message(
             f"{target}設定をリセットしました!", delete_after=5
@@ -172,20 +232,21 @@ async def reset(
             "設定の保存に失敗しました。管理者にお問い合わせください。"
         )
 
-@bot.slash_command(name="copysettings", description="他のサーバーから設定をインポートします")
+
+@bot.slash_command(
+    name="copysettings", description="他のサーバーから設定をインポートします"
+)
 async def copysettings(
     ctx: discord.ApplicationContext,
-    guild_id: int = discord.Option(
-        description="インポート元のサーバーID"
-    ),
+    guild_id: int = discord.Option(description="インポート元のサーバーID"),
 ):
     try:
         if ctx.guild.id == guild_id:
             await ctx.response.send_message(
                 "同一のサーバーへのインポートです!", delete_after=5
             )
-        elif sql.isExistSettings(ctx.user,guild_id):
-            old_user_table = sql.getUserSettings(ctx.user,guild_id)
+        elif sql.isExistSettings(ctx.user, guild_id):
+            old_user_table = sql.getUserSettings(ctx.user, guild_id)
             new_user_table = sql.getUserSettings(ctx.user)
             new_user_table.character = old_user_table.character
             new_user_table.style = old_user_table.style
@@ -193,9 +254,7 @@ async def copysettings(
             new_user_table.intonationScale = old_user_table.intonationScale
             new_user_table.processingAlgorithm = old_user_table.processingAlgorithm
             sql.session.commit()
-            await ctx.response.send_message(
-                "設定をインポートしました!", delete_after=5
-            )
+            await ctx.response.send_message("設定をインポートしました!", delete_after=5)
         else:
             await ctx.response.send_message(
                 "指定されたサーバーIDが見つかりませんでした", delete_after=5
@@ -205,6 +264,7 @@ async def copysettings(
         await ctx.response.send_message(
             "設定の保存に失敗しました。管理者にお問い合わせください。", delete_after=5
         )
+
 
 @bot.slash_command(name="join", description="声詠みちゃんをボイスチャットに接続します")
 async def join(ctx: discord.ApplicationContext):
@@ -221,7 +281,8 @@ async def join(ctx: discord.ApplicationContext):
             await ctx.followup.send(f"{channel.name}に参加しました", delete_after=5)
         else:
             await ctx.followup.send(
-                "既にボイスチャンネルに参加しています!\n強制的に切断した場合はしばらく時間を置いてからお試しください。", delete_after=5
+                "既にボイスチャンネルに参加しています!\n強制的に切断した場合はしばらく時間を置いてからお試しください。",
+                delete_after=5,
             )
     else:
         await ctx.followup.send(
@@ -239,11 +300,13 @@ async def leave(ctx: discord.ApplicationContext):
     print(g.voiceChatDict)
     await ctx.defer()
     if ctx.guild_id in g.voiceChatDict.keys():
-            vc = g.voiceChatDict[ctx.guild_id]["voiceChannel"]
-            await vc.disconnect()
-            await ctx.followup.send("ボイスチャンネルから切断しました", delete_after=5)
+        vc = g.voiceChatDict[ctx.guild_id]["voiceChannel"]
+        await vc.disconnect()
+        del g.voiceChatDict[ctx.guild_id]
+        await ctx.followup.send("ボイスチャンネルから切断しました", delete_after=5)
     else:
         await ctx.followup.send("ボイスチャンネルに参加していません！", delete_after=5)
+
 
 @bot.event
 async def on_message_delete(message: Message):
@@ -333,26 +396,48 @@ async def on_message(message: Message):
         if g.voiceChatDict[message.guild.id]["calledChannel"] != message.channel:
             return
         vq = g.voiceChatDict[message.guild.id]["voiceQueue"]
+        message_text = message.content
         user_table = sql.getUserSettings(message.author)
+        dicts_table = sql.getAllDictSettings(message.author)
         character = user_table.character
         style = user_table.style
         pitch = user_table.pitchScale
         intonation = user_table.intonationScale
         algorithm = user_table.processingAlgorithm
-        isExistSpeaker = False
+        # メッセージの加工
 
-        for speaker in g.speakerList:
-            if speaker["speakerUuid"] == character:
-                isExistSpeaker = True
-                break
-        if not isExistSpeaker:
-            character = None
-            style = None
-
+        # 話者のフォールバック処理
+        if not any(s["speakerUuid"] == character for s in g.speakerList):
+            if any(
+                s["speakerUuid"] == cfg["default"]["defaultCharacter"]
+                for s in g.speakerList
+            ):
+                character = cfg["default"]["defaultCharacter"]
+                style = cfg["default"]["defaultStyle"]
+            else:
+                character = g.speakerList[0]["speakerUuid"]
+                style = g.speakerList[0]["styles"][0]["styleId"]
+        # 辞書データのロード
+        await api.setdict(
+            dicts=[
+                {
+                    "word": jaconv.hira2kata(
+                        jaconv.h2z(dt.word, kana=True, ascii=True, digit=True)
+                    ),
+                    "yomi": jaconv.hira2kata(
+                        jaconv.h2z(dt.yomi, kana=True, ascii=True, digit=True)
+                    ),
+                    "accent": dt.accent,
+                    "numMoras": len(dt.yomi),
+                }
+                for dt in dicts_table
+            ]
+        )
+        # 音声データの生成
         audio_data = await api.genvoice(
-            message.content,
-            character or cfg["default"]["defaultCharacter"],
-            style or cfg["default"]["defaultStyle"],
+            message_text,
+            character,
+            style,
             pitch or 0,
             intonation or 1,
             algorithm or "td-psola",
@@ -367,21 +452,21 @@ async def on_message(message: Message):
 async def on_voice_state_update(member: Member, before: VoiceState, after: VoiceState):
     if member.guild.id in g.voiceChatDict.keys() and after.channel is None:
         vq = g.voiceChatDict[member.guild.id]["voiceQueue"]
+        vc = g.voiceChatDict[member.guild.id]["voiceChannel"]
         if member == bot.user:
+            del g.voiceChatDict[member.guild.id]
             await asyncio.sleep(5)
             for queue in vq:
                 os.remove(queue)
-            del g.voiceChatDict[member.guild.id]
         elif (
             member.guild.voice_client.channel is not None
             and len(member.guild.voice_client.channel.members) == 1
         ):
-            vc = g.voiceChatDict[member.guild.id]["voiceChannel"]
+            del g.voiceChatDict[member.guild.id]
             await vc.disconnect()
             await asyncio.sleep(5)
             for queue in vq:
                 os.remove(queue)
-            del g.voiceChatDict[member.guild.id]
 
 
 @tasks.loop(seconds=2)
@@ -403,5 +488,6 @@ async def playQueue():
                 del vq[0]
             except ClientException:
                 pass
+
 
 bot.run(cfg["default"]["bot_token"])

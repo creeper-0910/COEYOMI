@@ -5,6 +5,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session
 
 
+#TODO:新規作成せず検索のみの処理を作成する
 class SQL:
     def __init__(self, database):
         self.Engine = create_engine(database, echo=False)
@@ -39,41 +40,60 @@ class SQL:
         self.Base.metadata.create_all(bind=self.Engine)
 
     @region.cache_on_arguments()
-    def getUserSettings(self, user:Member,optional_guild_id:int=None):
+    def getUserSettings(self, user: Member, optional_guild_id: int = None):
         user_table = (
             self.session.query(self.User)
-            .filter(self.User.server == (optional_guild_id or user.guild.id), self.User.user == user.id)
+            .filter(
+                self.User.server == (optional_guild_id or user.guild.id),
+                self.User.user == user.id,
+            )
             .first()
         )
         if user_table is None:
             user_table = self.User()
-            user_table.server = user.guild.id
+            user_table.server = optional_guild_id or user.guild.id
             user_table.user = user.id
             self.session.add(user_table)
             self.session.commit()
         return user_table
 
     @region.cache_on_arguments()
-    def isExistSettings(self, user:Member,optional_guild_id:int=None):
+    def isExistSettings(self, user: Member, optional_guild_id: int = None):
         user_table = (
             self.session.query(self.User)
-            .filter(self.User.server == (optional_guild_id or user.guild.id), self.User.user == user.id)
+            .filter(
+                self.User.server == (optional_guild_id or user.guild.id),
+                self.User.user == user.id,
+            )
             .first()
         )
         print(user_table is not None)
         return user_table is not None
 
     @region.cache_on_arguments()
-    def getDictSettings(self, user:Member,word:str,optional_guild_id:int=None):
+    def getSingleDictSettings(
+        self, user: Member, word: str, optional_guild_id: int = None
+    ):
         dict_table = (
             self.session.query(self.Dict)
-            .filter(self.Dict.server == (optional_guild_id or user.guild.id), self.Dict.word == word)
+            .filter(
+                self.Dict.server == (optional_guild_id or user.guild.id),
+                self.Dict.word == word,
+            )
             .first()
         )
         if dict_table is None:
             dict_table = self.Dict()
-            dict_table.server = user.guild.id
+            dict_table.server = optional_guild_id or user.guild.id
             dict_table.word = word
             self.session.add(dict_table)
             self.session.commit()
         return dict_table
+
+    @region.cache_on_arguments()
+    def getAllDictSettings(self, user: Member, optional_guild_id: int = None):
+        return (
+            self.session.query(self.Dict)
+            .filter(self.Dict.server == (optional_guild_id or user.guild.id))
+            .all()
+        )

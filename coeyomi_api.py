@@ -28,6 +28,11 @@ class COEIROINK_API:
                 response_data = await response.json()
                 return response_data["detail"]
 
+    async def setdict(self,dicts):
+        async with aiohttp.ClientSession() as session:
+            async with session.post(self.url + "/v1/set_dictionary", json={"dictionaryWords": dicts}):
+                return None
+
     async def getpredictwithduration(
         self, text: str, speaker_uuid: str, speaker_id: int, prosody
     ):
