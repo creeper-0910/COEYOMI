@@ -1,5 +1,4 @@
 from discord import Member
-from dogpile.cache import make_region
 from sqlalchemy import Column, Float, Integer, String, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session
@@ -34,12 +33,9 @@ class SQL:
         self.User = User
         self.Dict = Dict
 
-    region = make_region().configure("dogpile.cache.memory", expiration_time=3600)
-
     def createTable(self):
         self.Base.metadata.create_all(bind=self.Engine)
 
-    @region.cache_on_arguments()
     def getUserSettings(self, user: Member, optional_guild_id: int = None):
         user_table = (
             self.session.query(self.User)
@@ -57,7 +53,6 @@ class SQL:
             self.session.commit()
         return user_table
 
-    @region.cache_on_arguments()
     def isExistSettings(self, user: Member, optional_guild_id: int = None):
         user_table = (
             self.session.query(self.User)
@@ -70,7 +65,6 @@ class SQL:
         print(user_table is not None)
         return user_table is not None
 
-    @region.cache_on_arguments()
     def getSingleDictSettings(
         self, user: Member, word: str, optional_guild_id: int = None
     ):
@@ -90,7 +84,6 @@ class SQL:
             self.session.commit()
         return dict_table
 
-    @region.cache_on_arguments()
     def getAllDictSettings(self, user: Member, optional_guild_id: int = None):
         return (
             self.session.query(self.Dict)

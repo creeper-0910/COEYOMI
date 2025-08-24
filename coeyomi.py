@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import re
 import subprocess
 from typing import List, Union
 
@@ -138,7 +139,7 @@ async def setdict(
     except Exception:
         sql.session.rollback()
         await ctx.response.send_message(
-            "設定の保存に失敗しました。管理者にお問い合わせください。"
+            "設定の保存に失敗しました。管理者にお問い合わせください。", delete_after=5
         )
 
 
@@ -182,7 +183,7 @@ async def advanced(
     except Exception:
         sql.session.rollback()
         await ctx.response.send_message(
-            "設定の保存に失敗しました。管理者にお問い合わせください。"
+            "設定の保存に失敗しました。管理者にお問い合わせください。", delete_after=5
         )
 
 
@@ -200,7 +201,7 @@ async def reset(
         default="",
     ),
 ):
-    #TODO:新しい列を作成せずリセットできるようにする
+    # TODO:新しい列を作成せずリセットできるようにする
     try:
         match target:
             case "character":
@@ -216,7 +217,7 @@ async def reset(
                 dict_table = sql.getSingleDictSettings(ctx.user, word)
                 if dict_table.yomi is None:
                     await ctx.response.send_message(
-                        "指定されたワードが辞書に見つかりませんでした!",delete_after=5
+                        "指定されたワードが辞書に見つかりませんでした!", delete_after=5
                     )
                     sql.session.delete(dict_table)
                     return
@@ -229,7 +230,7 @@ async def reset(
     except Exception:
         sql.session.rollback()
         await ctx.response.send_message(
-            "設定の保存に失敗しました。管理者にお問い合わせください。"
+            "設定の保存に失敗しました。管理者にお問い合わせください。", delete_after=5
         )
 
 
@@ -273,8 +274,6 @@ async def join(ctx: discord.ApplicationContext):
         if ctx.guild.voice_client is None:
             channel = ctx.user.voice.channel
             vc = await channel.connect()
-            print(type(vc))
-            print(type(ctx.channel))
             g.voiceChatDict[ctx.guild_id] = VoiceChat(
                 voiceChannel=vc, calledChannel=ctx.channel, voiceQueue=[]
             )
@@ -297,7 +296,6 @@ async def join(ctx: discord.ApplicationContext):
     delete_after=5,
 )
 async def leave(ctx: discord.ApplicationContext):
-    print(g.voiceChatDict)
     await ctx.defer()
     if ctx.guild_id in g.voiceChatDict.keys():
         vc = g.voiceChatDict[ctx.guild_id]["voiceChannel"]
@@ -365,10 +363,6 @@ async def on_reaction_add(reaction: Reaction, user: Union[Member, User]):
             )
             await msg.delete(delay=5)
             return
-        print(g.styleDict[reaction.message.id]["uuid"])
-        print(
-            reaction.message.embeds[0].fields[g.menu_emojis.index(reaction.emoji)].value
-        )
         user_table.character = g.styleDict[reaction.message.id]["uuid"]
         user_table.style = (
             reaction.message.embeds[0].fields[g.menu_emojis.index(reaction.emoji)].value
@@ -405,6 +399,61 @@ async def on_message(message: Message):
         intonation = user_table.intonationScale
         algorithm = user_table.processingAlgorithm
         # メッセージの加工
+        if len(message.mentions) != 0:
+            for mention in reversed(message.mentions):
+                message_text = f"{mention.display_name}さん {message_text}"
+
+        message_text = re.sub(r"<\S{1,}>", "", message_text)
+        message_text = re.sub(r"\n", " ", message_text)
+        # ファイルの種類と数をカウント
+        if len(message.attachments) != 0:
+            attach_count = {}
+            for i in range(len(message.attachments)):
+                if "image" in message.attachments[i].content_type:
+                    attach_count["image"] = attach_count.get("image", 0) + 1
+                elif "video" in message.attachments[i].content_type:
+                    attach_count["video"] = attach_count.get("video", 0) + 1
+                elif "audio" in message.attachments[i].content_type:
+                    attach_count["audio"] = attach_count.get("audio", 0) + 1
+                else:
+                    attach_count["other"] = attach_count.get("other", 0) + 1
+
+            if attach_count.get("image", None) is not None:
+                message_text = (
+                    str(attach_count["image"]) + "件の画像ファイル " + message_text
+                )
+            if attach_count.get("video", None) is not None:
+                message_text = (
+                    str(attach_count["video"]) + "件の動画ファイル " + message_text
+                )
+            if attach_count.get("audio", None) is not None:
+                message_text = (
+                    str(attach_count["audio"]) + "件の音声ファイル " + message_text
+                )
+            if attach_count.get("other", None) is not None:
+                message_text = (
+                    str(attach_count["other"]) + "件のファイル " + message_text
+                )
+
+        # リンク数をカウントし、リンクは削除する
+        linkcount = len(
+            re.findall(
+                r"http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+",
+                message_text,
+            )
+        )
+        if linkcount != 0:
+            message_text = re.sub(
+                r"http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+",
+                "",
+                message_text,
+            )
+            message_text = str(linkcount) + "件のリンク " + message_text
+
+        for regexp_data in cfg["default"]["regexp"]:
+            if regexp_data["exp"] != "":
+                regexp = re.compile(regexp_data["exp"])
+                message_text = re.sub(regexp, regexp_data["replace"], message_text)
 
         # 話者のフォールバック処理
         if not any(s["speakerUuid"] == character for s in g.speakerList):

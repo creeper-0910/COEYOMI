@@ -13,6 +13,10 @@ startup_timeout = 5
 #設定メニューの内容分割数を指定できます(最大20)
 split = 5
 #正規表現を利用して文字列を置き換えます
+#例:
+#[[default.regexp]]
+#exp = '''\|\|.*?\|\|'''
+#replace = "ほにゃらら"
 [[default.regexp]]
-exp = ""
+exp = ''''''
 replace = ""
