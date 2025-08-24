@@ -1,7 +1,5 @@
 [default]
 bot_token = ""
-#オーナーIDはカンマ区切りで追加することができます、空の場合はボットの所有者のみ許可されます
-owner_id = []
 #各種ファイルパス・リンクを指定します
 coeiroink_path = "COEIROINK/engine/engine.exe"
 coeiroink_url = "http://127.0.0.1:50032"

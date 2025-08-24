@@ -245,28 +245,6 @@ async def leave(ctx: discord.ApplicationContext):
     else:
         await ctx.followup.send("ボイスチャンネルに参加していません！", delete_after=5)
 
-
-@commands.is_owner()
-@bot.slash_command(name="reload", description="エンジンの再起動を行います")
-async def reload(ctx: discord.ApplicationContext):
-    await ctx.defer(ephemeral=True)
-    await close()
-    await on_ready()
-    await ctx.followup.send("再起動しました!")
-
-
-@reload.error
-async def on_application_command_error(
-    ctx: discord.ApplicationContext, error: discord.DiscordException
-):
-    if isinstance(error, commands.NotOwner):
-        await ctx.respond(
-            "このコマンドはボットの所有者のみが実行できます！", ephemeral=True
-        )
-    else:
-        raise error
-
-
 @bot.event
 async def on_message_delete(message: Message):
     if message.author != bot.user:
