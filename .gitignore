@@ -4,6 +4,7 @@ __pycache__
 .venv
 *.wav
 *.toml
+!pyproject.toml
 *.sqlite3
 COEIROINK/*
 ffmpeg/*
