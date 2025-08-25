@@ -29,3 +29,4 @@ class VoiceChat(TypedDict):
 class PageAndUuid(TypedDict):
     paginator: CustomPaginator
     uuid: str
+    name: str

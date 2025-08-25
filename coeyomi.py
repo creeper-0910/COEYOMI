@@ -10,6 +10,7 @@ import jaconv
 from discord import (
     ClientException,
     FFmpegPCMAudio,
+    Guild,
     Member,
     Message,
     Reaction,
@@ -276,7 +277,14 @@ async def join(ctx: discord.ApplicationContext):
             g.voiceChatDict[ctx.guild_id] = VoiceChat(
                 voiceChannel=vc, calledChannel=ctx.channel, voiceQueue=[]
             )
-            await ctx.followup.send(f"{channel.name}に参加しました", delete_after=5)
+            await ctx.followup.send(
+                embed=discord.Embed(
+                    title=f"{channel.name}に参加しました",
+                    description="このボットを利用する場合、[COEIROINKの規約](https://coeiroink.com/terms)に同意したこととみなします。\n※ 音声利用の際は「COEIROINK」と「合成音声名」が含まれるクレジット表記が必須です。",
+                    color=discord.Colour.blue()
+                ),
+                delete_after=5,
+            )
         else:
             await ctx.followup.send(
                 "既にボイスチャンネルに参加しています!\n強制的に切断した場合はしばらく時間を置いてからお試しください。",
@@ -304,6 +312,24 @@ async def leave(ctx: discord.ApplicationContext):
     else:
         await ctx.followup.send("ボイスチャンネルに参加していません！", delete_after=5)
 
+@bot.event
+async def on_guild_join(guild: Guild):
+    if guild.system_channel and guild.system_channel.permissions_for(guild.me).send_messages:
+        await guild.system_channel.send(embed=discord.Embed(
+                    title="声詠みちゃんをご利用いただきありがとうございます!",
+                    description="バグ報告は[github](https://github.com/creeper-0910/COEYOMI/issues)、または[Twitter](https://x.com/Riku_2004)までお願いいたします!\nこのボットを利用する場合、[COEIROINKの規約](https://coeiroink.com/terms)に同意したこととみなします。\n※ 音声利用の際は「COEIROINK」と「合成音声名」が含まれるクレジット表記が必須です。\nまた、動画配信サービス等で読み上げ機能をご利用頂く場合は、\n[「COEIROINKを用いたコンテンツの配信・切り抜き許可について」](https://coeiroink.com/terms#optional-terms)に基づき、Bot名の記載をお願いいたします。",
+                    color=discord.Colour.blue()
+                ))
+        return
+
+    for channel in guild.text_channels:
+        if channel.permissions_for(guild.me).send_messages:
+            await channel.send(embed=discord.Embed(
+                    title="声詠みちゃんをご利用いただきありがとうございます!",
+                    description="バグ報告は[github](https://github.com/creeper-0910/COEYOMI/issues)、または[Twitter](https://x.com/Riku_2004)までお願いいたします!\nこのボットを利用する場合、[COEIROINKの規約](https://coeiroink.com/terms)に同意したこととみなします。\n※ 音声利用の際は「COEIROINK」と「合成音声名」が含まれるクレジット表記が必須です。\nまた、動画配信サービス等で読み上げ機能をご利用頂く場合は、\n[「COEIROINKを用いたコンテンツの配信・切り抜き許可について」](https://coeiroink.com/terms#optional-terms)に基づき、Bot名の記載をお願いいたします。",
+                    color=discord.Colour.blue()
+                ))
+            break
 
 @bot.event
 async def on_message_delete(message: Message):
@@ -340,6 +366,9 @@ async def on_reaction_add(reaction: Reaction, user: Union[Member, User]):
         selectedUuid = (
             reaction.message.embeds[0].fields[g.menu_emojis.index(reaction.emoji)].value
         )
+        selectedName = (
+            reaction.message.embeds[0].fields[g.menu_emojis.index(reaction.emoji)].name
+        )
         for speaker in g.speakerList:
             if speaker["speakerUuid"] == selectedUuid:
                 style = speaker["styles"]
@@ -349,7 +378,7 @@ async def on_reaction_add(reaction: Reaction, user: Union[Member, User]):
         )
         await reaction.message.delete()
         msg = await paginator.send(await Bot.get_context(bot, reaction.message))
-        g.styleDict[msg.id] = PageAndUuid(paginator=paginator, uuid=selectedUuid)
+        g.styleDict[msg.id] = PageAndUuid(paginator=paginator, uuid=selectedUuid, name=selectedName)
         await fnc.update_page_reaction(msg)
     # キャラクター設定のメッセージIDが記録されているか
     elif reaction.message.id in g.styleDict.keys():
@@ -368,14 +397,19 @@ async def on_reaction_add(reaction: Reaction, user: Union[Member, User]):
         )
         try:
             sql.session.commit()
-            msg = await reaction.message.reply(
-                f"{user.mention}\n音源の変更に成功しました!"
+            msg = await reaction.message.reply(f"{user.mention}",
+                embed=discord.Embed(
+                    title="音源の変更に成功しました!",
+                    description=f"COEIROINK: {g.styleDict[reaction.message.id]["name"].split('-', 1)[1].strip()}",
+                    color=discord.Colour.blue()
+                ),
             )
-        except Exception:
+        except Exception as e:
             sql.session.rollback()
             msg = await reaction.message.reply(
                 f"{user.mention}\n設定の保存に失敗しました。管理者にお問い合わせください。"
             )
+            print(e)
         finally:
             await msg.delete(delay=5)
             await reaction.message.delete()
