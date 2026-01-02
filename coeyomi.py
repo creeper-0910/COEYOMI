@@ -281,7 +281,7 @@ async def join(ctx: discord.ApplicationContext):
                 embed=discord.Embed(
                     title=f"{channel.name}に参加しました",
                     description="このボットを利用する場合、[COEIROINKの規約](https://coeiroink.com/terms)に同意したこととみなします。\n※ 音声利用の際は「COEIROINK」と「合成音声名」が含まれるクレジット表記が必須です。",
-                    color=discord.Colour.blue()
+                    color=discord.Colour.blue(),
                 ),
                 delete_after=5,
             )
@@ -312,24 +312,33 @@ async def leave(ctx: discord.ApplicationContext):
     else:
         await ctx.followup.send("ボイスチャンネルに参加していません！", delete_after=5)
 
+
 @bot.event
 async def on_guild_join(guild: Guild):
-    if guild.system_channel and guild.system_channel.permissions_for(guild.me).send_messages:
-        await guild.system_channel.send(embed=discord.Embed(
-                    title="声詠みちゃんをご利用いただきありがとうございます!",
-                    description="バグ報告は[github](https://github.com/creeper-0910/COEYOMI/issues)、または[Twitter](https://x.com/Riku_2004)までお願いいたします!\nこのボットを利用する場合、[COEIROINKの規約](https://coeiroink.com/terms)に同意したこととみなします。\n※ 音声利用の際は「COEIROINK」と「合成音声名」が含まれるクレジット表記が必須です。\nまた、動画配信サービス等で読み上げ機能をご利用頂く場合は、\n[「COEIROINKを用いたコンテンツの配信・切り抜き許可について」](https://coeiroink.com/terms#optional-terms)に基づき、Bot名の記載をお願いいたします。",
-                    color=discord.Colour.blue()
-                ))
+    if (
+        guild.system_channel
+        and guild.system_channel.permissions_for(guild.me).send_messages
+    ):
+        await guild.system_channel.send(
+            embed=discord.Embed(
+                title="声詠みちゃんをご利用いただきありがとうございます!",
+                description="バグ報告は[github](https://github.com/creeper-0910/COEYOMI/issues)、または[Twitter](https://x.com/Riku_2004)までお願いいたします!\nこのボットを利用する場合、[COEIROINKの規約](https://coeiroink.com/terms)に同意したこととみなします。\n※ 音声利用の際は「COEIROINK」と「合成音声名」が含まれるクレジット表記が必須です。\nまた、動画配信サービス等で読み上げ機能をご利用頂く場合は、\n[「COEIROINKを用いたコンテンツの配信・切り抜き許可について」](https://coeiroink.com/terms#optional-terms)に基づき、Bot名の記載をお願いいたします。",
+                color=discord.Colour.blue(),
+            )
+        )
         return
 
     for channel in guild.text_channels:
         if channel.permissions_for(guild.me).send_messages:
-            await channel.send(embed=discord.Embed(
+            await channel.send(
+                embed=discord.Embed(
                     title="声詠みちゃんをご利用いただきありがとうございます!",
                     description="バグ報告は[github](https://github.com/creeper-0910/COEYOMI/issues)、または[Twitter](https://x.com/Riku_2004)までお願いいたします!\nこのボットを利用する場合、[COEIROINKの規約](https://coeiroink.com/terms)に同意したこととみなします。\n※ 音声利用の際は「COEIROINK」と「合成音声名」が含まれるクレジット表記が必須です。\nまた、動画配信サービス等で読み上げ機能をご利用頂く場合は、\n[「COEIROINKを用いたコンテンツの配信・切り抜き許可について」](https://coeiroink.com/terms#optional-terms)に基づき、Bot名の記載をお願いいたします。",
-                    color=discord.Colour.blue()
-                ))
+                    color=discord.Colour.blue(),
+                )
+            )
             break
+
 
 @bot.event
 async def on_message_delete(message: Message):
@@ -378,7 +387,9 @@ async def on_reaction_add(reaction: Reaction, user: Union[Member, User]):
         )
         await reaction.message.delete()
         msg = await paginator.send(await Bot.get_context(bot, reaction.message))
-        g.styleDict[msg.id] = PageAndUuid(paginator=paginator, uuid=selectedUuid, name=selectedName)
+        g.styleDict[msg.id] = PageAndUuid(
+            paginator=paginator, uuid=selectedUuid, name=selectedName
+        )
         await fnc.update_page_reaction(msg)
     # キャラクター設定のメッセージIDが記録されているか
     elif reaction.message.id in g.styleDict.keys():
@@ -397,11 +408,12 @@ async def on_reaction_add(reaction: Reaction, user: Union[Member, User]):
         )
         try:
             sql.session.commit()
-            msg = await reaction.message.reply(f"{user.mention}",
+            msg = await reaction.message.reply(
+                f"{user.mention}",
                 embed=discord.Embed(
                     title="音源の変更に成功しました!",
-                    description=f"COEIROINK: {g.styleDict[reaction.message.id]["name"].split('-', 1)[1].strip()}",
-                    color=discord.Colour.blue()
+                    description=f"COEIROINK: {g.styleDict[reaction.message.id]['name'].split('-', 1)[1].strip()}",
+                    color=discord.Colour.blue(),
                 ),
             )
         except Exception as e:
@@ -438,12 +450,16 @@ async def on_message(message: Message):
 
         message_text = re.sub(r"<\S{1,}>", "", message_text)
         message_text = re.sub(r"\n", " ", message_text)
+        message_text = re.sub(r"\x1B\[[0-?]*[ -/]*[@-~]","", message_text)
         # ファイルの種類と数をカウント
         if len(message.attachments) != 0:
             attach_count = {}
             for i in range(len(message.attachments)):
                 if "image" in message.attachments[i].content_type:
-                    attach_count["image"] = attach_count.get("image", 0) + 1
+                    if(message.attachments[i].filename.startswith("SPOILER_")):
+                        attach_count["spoiler_image"] = attach_count.get("spoiler_image", 0) + 1
+                    else:
+                        attach_count["image"] = attach_count.get("image", 0) + 1
                 elif "video" in message.attachments[i].content_type:
                     attach_count["video"] = attach_count.get("video", 0) + 1
                 elif "audio" in message.attachments[i].content_type:
@@ -451,6 +467,10 @@ async def on_message(message: Message):
                 else:
                     attach_count["other"] = attach_count.get("other", 0) + 1
 
+            if attach_count.get("spoiler_image", None) is not None:
+                message_text = (
+                    str(attach_count["spoiler_image"]) + "件の隠し画像ファイル " + message_text
+                )
             if attach_count.get("image", None) is not None:
                 message_text = (
                     str(attach_count["image"]) + "件の画像ファイル " + message_text

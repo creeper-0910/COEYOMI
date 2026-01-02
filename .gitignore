@@ -1,5 +1,6 @@
 __pycache__
 .env
+.python-version
 *.lock
 .venv
 *.wav
