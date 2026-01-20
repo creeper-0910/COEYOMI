@@ -1,3 +1,4 @@
+import re
 import discord
 from discord.ext.pages import Page
 
@@ -29,3 +30,15 @@ class COEYOMI_FUNC:
                 )
             pages.append(Page(embeds=[embed]))
         return CustomPaginator(pages=pages, owner_id=owner_id, g=self.g, fnc=self)
+
+    async def cleanup_message(self, message_text:str):
+        message_text = re.sub(r"<\S{1,}>", "", message_text)
+        message_text = re.sub(r"\n", " ", message_text)
+        message_text = re.sub("'", "", message_text)
+        message_text = re.sub(r"\x1B\[[0-?]*[ -/]*[@-~]","", message_text)
+
+        for regexp_data in self.cfg["default"]["regexp"]:
+            if regexp_data["exp"] != "":
+                regexp = re.compile(regexp_data["exp"])
+                message_text = re.sub(regexp, regexp_data["replace"], message_text)
+        return message_text

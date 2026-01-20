@@ -127,16 +127,25 @@ async def setdict(
             delete_after=5,
         )
         return
+    clean_word = await fnc.cleanup_message(word)
+    clean_yomi = await fnc.cleanup_message(yomi)
+    if clean_word == "" or clean_yomi == "":
+        await ctx.response.send_message(
+            "利用できない文字列によりワードまたは読みが空になりました!",
+            delete_after=5,
+        )
+        return
     try:
-        dict_table = sql.getSingleDictSettings(ctx.user, word)
-        dict_table.yomi = yomi
+        dict_table = sql.getSingleDictSettings(ctx.user, clean_word)
+        dict_table.yomi = clean_yomi
         dict_table.accent = accent
         sql.session.commit()
         await ctx.response.send_message(
             f"ワード:{word}、読み:{yomi}、アクセント:{accent}に設定しました!",
             delete_after=5,
         )
-    except Exception:
+    except Exception as e:
+        print(e)
         sql.session.rollback()
         await ctx.response.send_message(
             "設定の保存に失敗しました。管理者にお問い合わせください。", delete_after=5
@@ -296,7 +305,6 @@ async def join(ctx: discord.ApplicationContext):
             delete_after=5,
         )
 
-
 @bot.slash_command(
     name="leave",
     description="声詠みちゃんをボイスチャットから切断します",
@@ -308,6 +316,10 @@ async def leave(ctx: discord.ApplicationContext):
         vc = g.voiceChatDict[ctx.guild_id]["voiceChannel"]
         await vc.disconnect()
         del g.voiceChatDict[ctx.guild_id]
+        await ctx.followup.send("ボイスチャンネルから切断しました", delete_after=5)
+    elif ctx.guild.get_member(bot.user.id).voice.channel is not None:
+        vc = await ctx.guild.get_member(bot.user.id).voice.channel.connect()
+        await vc.disconnect()
         await ctx.followup.send("ボイスチャンネルから切断しました", delete_after=5)
     else:
         await ctx.followup.send("ボイスチャンネルに参加していません！", delete_after=5)
@@ -448,9 +460,8 @@ async def on_message(message: Message):
             for mention in reversed(message.mentions):
                 message_text = f"{mention.display_name}さん {message_text}"
 
-        message_text = re.sub(r"<\S{1,}>", "", message_text)
-        message_text = re.sub(r"\n", " ", message_text)
-        message_text = re.sub(r"\x1B\[[0-?]*[ -/]*[@-~]","", message_text)
+        message_text = await fnc.cleanup_message(message_text)
+
         # ファイルの種類と数をカウント
         if len(message.attachments) != 0:
             attach_count = {}
@@ -503,51 +514,47 @@ async def on_message(message: Message):
             )
             message_text = str(linkcount) + "件のリンク " + message_text
 
-        for regexp_data in cfg["default"]["regexp"]:
-            if regexp_data["exp"] != "":
-                regexp = re.compile(regexp_data["exp"])
-                message_text = re.sub(regexp, regexp_data["replace"], message_text)
-
-        # 話者のフォールバック処理
-        if not any(s["speakerUuid"] == character for s in g.speakerList):
-            if any(
-                s["speakerUuid"] == cfg["default"]["defaultCharacter"]
-                for s in g.speakerList
-            ):
-                character = cfg["default"]["defaultCharacter"]
-                style = cfg["default"]["defaultStyle"]
-            else:
-                character = g.speakerList[0]["speakerUuid"]
-                style = g.speakerList[0]["styles"][0]["styleId"]
-        # 辞書データのロード
-        await api.setdict(
-            dicts=[
-                {
-                    "word": jaconv.hira2kata(
-                        jaconv.h2z(dt.word, kana=True, ascii=True, digit=True)
-                    ),
-                    "yomi": jaconv.hira2kata(
-                        jaconv.h2z(dt.yomi, kana=True, ascii=True, digit=True)
-                    ),
-                    "accent": dt.accent,
-                    "numMoras": len(dt.yomi),
-                }
-                for dt in dicts_table
-            ]
-        )
-        # 音声データの生成
-        audio_data = await api.genvoice(
-            message_text,
-            character,
-            style,
-            pitch or 0,
-            intonation or 1,
-            algorithm or "td-psola",
-        )
-        audio_name = f"{generate(size=16)}.wav"
-        with open(audio_name, "wb") as f:
-            f.write(audio_data)
-        vq.append(audio_name)
+        if message_text:
+            # 話者のフォールバック処理
+            if not any(s["speakerUuid"] == character for s in g.speakerList):
+                if any(
+                    s["speakerUuid"] == cfg["default"]["defaultCharacter"]
+                    for s in g.speakerList
+                ):
+                    character = cfg["default"]["defaultCharacter"]
+                    style = cfg["default"]["defaultStyle"]
+                else:
+                    character = g.speakerList[0]["speakerUuid"]
+                    style = g.speakerList[0]["styles"][0]["styleId"]
+            # 辞書データのロード
+            await api.setdict(
+                dicts=[
+                    {
+                        "word": jaconv.hira2kata(
+                            jaconv.h2z(dt.word, kana=True, ascii=True, digit=True)
+                        ),
+                        "yomi": jaconv.hira2kata(
+                            jaconv.h2z(dt.yomi, kana=True, ascii=True, digit=True)
+                        ),
+                        "accent": dt.accent,
+                        "numMoras": len(dt.yomi),
+                    }
+                    for dt in dicts_table
+                ]
+            )
+            # 音声データの生成
+            audio_data = await api.genvoice(
+                message_text,
+                character,
+                style,
+                pitch or 0,
+                intonation or 1,
+                algorithm or "td-psola",
+            )
+            audio_name = f"{generate(size=16)}.wav"
+            with open(audio_name, "wb") as f:
+                f.write(audio_data)
+            vq.append(audio_name)
 
 
 @bot.event
@@ -556,6 +563,7 @@ async def on_voice_state_update(member: Member, before: VoiceState, after: Voice
         vq = g.voiceChatDict[member.guild.id]["voiceQueue"]
         vc = g.voiceChatDict[member.guild.id]["voiceChannel"]
         if member == bot.user:
+            # ボット自身が切断された場合にキューを削除
             del g.voiceChatDict[member.guild.id]
             await asyncio.sleep(5)
             for queue in vq:
